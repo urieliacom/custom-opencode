@@ -1,12 +1,13 @@
 
-# Official OpenCode release
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+# Python 3.14 on Debian Trixie
+FROM python:3.14-slim-trixie
 ARG OPENCODE_VERSION=1.19.3
 ARG DUCKDB_VERSION=1.5.6
 ARG MILLER_VERSION=6.22.0
 
 # Install command-line analysis and debugging tools
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends \
     bash \
     ca-certificates \
@@ -79,14 +80,14 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
 
-RUN uv venv "$VIRTUAL_ENV"
+RUN python -m venv "$VIRTUAL_ENV"
 
 # Install Python data-analysis dependencies
 COPY analysis-requirements.txt /tmp/analysis-requirements.txt
 
-RUN uv pip install --python "$VIRTUAL_ENV/bin/python" --only-binary=:all: \
+RUN "$VIRTUAL_ENV/bin/python" -m pip install --only-binary=:all: \
     -r /tmp/analysis-requirements.txt \
-    && uv pip check --python "$VIRTUAL_ENV/bin/python" \
+    && "$VIRTUAL_ENV/bin/python" -m pip check \
     && rm /tmp/analysis-requirements.txt
 
 RUN chown -R opencode:opencode /home/opencode
