@@ -3,6 +3,7 @@
 FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 ARG OPENCODE_VERSION=1.19.3
 ARG DUCKDB_VERSION=1.5.6
+ARG MILLER_VERSION=6.22.0
 
 # Install command-line analysis and debugging tools
 RUN apt-get update \
@@ -19,7 +20,6 @@ RUN apt-get update \
     diffutils \
     file \
     less \
-    miller \
     tar \
     gzip \
     xz-utils \
@@ -36,6 +36,14 @@ RUN apt-get update \
     libstdc++6 \
     libgcc-s1 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL \
+    "https://github.com/johnkerl/miller/releases/download/v${MILLER_VERSION}/miller-${MILLER_VERSION}-linux-amd64.tar.gz" \
+    -o /tmp/miller.tar.gz \
+    && tar -xzf /tmp/miller.tar.gz -C /tmp \
+    && install -m 0755 "/tmp/miller-${MILLER_VERSION}-linux-amd64/mlr" /usr/local/bin/mlr \
+    && rm -rf /tmp/miller.tar.gz "/tmp/miller-${MILLER_VERSION}-linux-amd64" \
+    && mlr --version
 
 RUN groupadd --gid 1000 opencode \
     && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash opencode \
@@ -55,6 +63,14 @@ RUN curl -fsSL \
     && chmod +x /usr/local/bin/duckdb \
     && rm /tmp/duckdb-cli.zip \
     && duckdb --version
+
+RUN duckdb -c "INSTALL duckdb_mcp FROM community; LOAD duckdb_mcp;"
+
+COPY duckdb-mcp.sql /home/opencode/.config/opencode/duckdb-mcp.sql
+
+RUN opencode plugin --global opencode-betterglob@1.1.0 \
+    && opencode plugin --global opencode-bettergrep@1.1.0 \
+    && opencode plugin --global opencode-betterread@1.1.0
 
 # Dedicated Python analysis environment
 ENV VIRTUAL_ENV=/opt/analysis-venv
@@ -79,6 +95,7 @@ RUN chown -R opencode:opencode /home/opencode
 RUN command -v rg \
     && command -v jq \
     && command -v mlr \
+    && mlr --version \
     && command -v duckdb \
     && command -v git \
     && command -v python \
@@ -90,7 +107,8 @@ USER opencode
 
 RUN test "$(id -u)" -ne 0 \
     && opencode --version \
-    && duckdb -c "SELECT 42 AS answer"
+    && duckdb -c "SELECT 42 AS answer" \
+    && opencode mcp list
 
 ENTRYPOINT ["opencode"]
 CMD []
